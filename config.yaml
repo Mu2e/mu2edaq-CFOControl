@@ -1,0 +1,32 @@
+# CFOControl configuration file
+#
+# Connection settings
+connection:
+  # IPv4 address, IPv6 address, or hostname of the otsdaq MacroMaker supervisor.
+  # Examples:
+  #   host: "127.0.0.1"           # IPv4 loopback
+  #   host: "::1"                 # IPv6 loopback
+  #   host: "mu2e-calo-03.fnal.gov"  # hostname
+  #   host: "2001:db8::1"         # IPv6 address
+  host: "127.0.0.1"
+  port: 5000
+
+# Receive timeout settings (seconds)
+timeouts:
+  # How long to wait for the *first* UDP response packet from the MacroMaker.
+  # Increase if the supervisor is slow to respond (e.g., complex macros).
+  first_packet: 10.0
+
+  # How long to wait for *each subsequent* packet in a multi-packet response.
+  # The MacroMaker sends all packets for one response in rapid succession;
+  # 0.2 s is sufficient to detect the end of the burst.
+  next_packet: 0.2
+
+# Logging / diagnostics
+logging:
+  # Python logging level: DEBUG, INFO, WARNING, ERROR
+  level: INFO
+
+  # Set to true to print every raw UDP send/receive to stdout.
+  # Useful for debugging protocol issues.
+  verbose_udp: false
