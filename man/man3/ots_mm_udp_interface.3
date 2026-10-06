@@ -1,0 +1,205 @@
+.TH OTS_MM_UDP_INTERFACE 3 "2026-10-06" "mu2edaq-CFOControl t01.00.00" "Mu2e DAQ Manual"
+.SH NAME
+ots_mm_udp_interface \- Python client for the otsdaq MacroMaker UDP protocol
+.SH SYNOPSIS
+.nf
+.B from ots_mm_udp_interface import OtsMMUdpInterface
+.B from ots_mm_udp_interface import encode_uri_component, decode_uri_component
+.PP
+.BI "with OtsMMUdpInterface(" host ", " port ", timeout_first=10.0, timeout_next=0.2, verbose=False) as " mm :
+.BI "    mm.get_frontend_list()"
+.BI "    mm.get_command_list(" fe )
+.BI "    s = mm.build_input_string(" fe ", " command ", " values )
+.BI "    outputs = mm.run_command(" fe ", " command ", " s )
+.fi
+.SH DESCRIPTION
+A single-module, standard-library-only port of otsdaq-utilities'
+.IR test/ots_mm_udp_interface.cpp .
+It speaks the text protocol served by
+.B MacroMakerSupervisor::RemoteControlWorkLoop
+when the supervisor is started with both
+.B OTS_MACROMAKER_UDP_IP
+and
+.B OTS_MACROMAKER_UDP_PORT
+set.
+The module is not installed as a package; callers import it from the
+directory that contains it.
+.PP
+Two requests exist.
+.B GetFrontendMacroInfo
+returns an XML document with one
+.B <FEMacros value='...'/>
+element per front-end interface, whose value is
+.BR ; -separated:
+supervisor name, supervisor LID, interface type, interface UID, then
+repeated records
+.IR "name;permissions;tooltip;nIn;in...;nOut;out..." .
+.B RunFrontendMacro;\fItype\fB;\fIuid\fB;fe;\fIenc(name)\fB;\fIinputs\fB;\fIoutputs\fB;0
+runs one macro and returns XML containing
+.B <outputArgs_value value='...'/>
+elements, an XML
+.B <Error value='...'/>
+element if the macro threw, or the plain text
+.B "Error: ..."
+for supervisor-level failures.
+The full wire description is in
+.IR docs/INTERFACES.md .
+.SS Class OtsMMUdpInterface
+.TP
+.BI OtsMMUdpInterface( host ", " port ", " timeout_first ", " timeout_next ", " verbose )
+Resolve
+.I host
+with
+.BR getaddrinfo (3)
+(first result, IPv4 or IPv6) and open one non-blocking UDP socket.
+Usable as a context manager;
+.B close()
+closes the socket.
+.TP
+.BI get_frontend_macro_info( force_refresh=False )
+Send
+.B GetFrontendMacroInfo
+and return the concatenated reply.
+The reply is cached on the object; later calls return the cache unless
+.I force_refresh
+is true.
+Raises
+.B RuntimeError
+on an empty reply.
+.TP
+.B get_frontend_list()
+List of front-end UIDs (field 3 of every
+.B FEMacros
+element).
+.TP
+.BI get_command_list( fe )
+URI-decoded macro names for
+.IR fe .
+.TP
+.BI get_command_input_count( fe ", " command )
+.TQ
+.BI get_command_output_count( fe ", " command )
+.TQ
+.BI get_command_input_name( fe ", " command ", " index )
+.TQ
+.BI get_command_output_name( fe ", " command ", " index )
+Parameter metadata parsed from the cached
+.B FEMacros
+string.
+.TP
+.BI build_input_string( fe ", " command ", " values )
+Return
+.IB enc(name1) , enc(value1) ; enc(name2) , enc(value2)...
+for plain string
+.IR values .
+Raises
+.B RuntimeError
+if the count does not match.
+.TP
+.BI run_command( fe ", " command ", " inputs )
+Send
+.B RunFrontendMacro
+with
+.I inputs
+placed verbatim in field 5, and return the list of still URI-encoded
+.B outputArgs_value
+strings in reply order.
+Raises
+.B RuntimeError
+on an empty reply or an XML
+.B <Error>
+element.
+.TP
+.BI decode_outputs( values )
+URI-decode a list returned by
+.BR run_command .
+.SS Module functions
+.TP
+.BI encode_uri_component( s )
+Keep characters for which
+.B str.isalpha()
+or
+.B str.isdigit()
+is true; percent-encode every UTF-8 byte of every other character.
+Stricter than JavaScript's
+.BR encodeURIComponent ,
+which also keeps
+.BR \-_.!~*'() .
+.TP
+.BI decode_uri_component( s )
+Replace each
+.BI % XX
+with
+.BR chr(0x XX ),
+one byte at a time, so multi-byte UTF-8 decodes as Latin-1.
+Malformed escapes pass through.
+.TP
+.BI decode_html_entities( s )
+Replace seven common HTML entities.
+Not called by the module itself.
+.TP
+.BI extract_xml_field( xml ", " field ", " occurrence=0 ", " after=0 )
+Return
+.RI ( value ", " end )
+for the
+.IR occurrence th
+.BI < field " value='" ... "'/>"
+at or after offset
+.IR after ,
+or
+.B ("", \-1)
+if absent.
+This is string search, not an XML parser.
+.SH ERRORS
+Protocol failures raise
+.BR RuntimeError .
+Name resolution and socket failures raise
+.B OSError
+(including
+.BR socket.gaierror ).
+.SH BUGS
+.TP
+.B Multi-input framing
+.B run_command
+does not URI-encode
+.I inputs
+before inserting it into the
+.BR ; -separated
+datagram, and
+.B build_input_string
+joins pairs with a raw
+.BR ; .
+The MacroMaker splits the whole datagram on
+.BR ; ,
+so for two or more inputs input 2 becomes the output-name list.
+The C++ reference encodes the whole input string a second time.
+.TP
+.B Plain-text errors
+A reply of the form
+.B "Error: ..."
+returns an empty list instead of raising.
+.TP
+.B Truncation
+A reply ends when no datagram arrives within
+.I timeout_next
+seconds.
+There is no length, sequence number or end-of-document check, so a late or
+lost fragment yields a short reply with no exception.
+Datagrams are not filtered by source address; on a reused object a late
+fragment of one reply is read as the start of the next.
+Each
+.B recvfrom
+reads at most 5000 bytes.
+.SH EXAMPLES
+.nf
+from ots_mm_udp_interface import OtsMMUdpInterface, decode_uri_component
+with OtsMMUdpInterface("mu2e\-cfo\-01", 5000) as mm:
+    s = mm.build_input_string("CFO0", "CFO Read", ["0x9100"])
+    for v in mm.run_command("CFO0", "CFO Read", s):
+        print(decode_uri_component(v))
+.fi
+.SH SEE ALSO
+.BR CFOControl.py (1),
+.BR config.yaml (5)
+.SH AUTHOR
+Mu2e DAQ group, Fermilab.

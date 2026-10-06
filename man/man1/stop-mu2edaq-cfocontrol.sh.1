@@ -1,0 +1,28 @@
+.TH STOP-MU2EDAQ-CFOCONTROL.SH 1 "2026-10-06" "mu2edaq-CFOControl t01.00.00" "Mu2e DAQ Manual"
+.SH NAME
+stop-mu2edaq-cfocontrol.sh \- no-op stop script for the one-shot CFOControl tool
+.SH SYNOPSIS
+.B stop\-mu2edaq\-cfocontrol.sh
+.SH DESCRIPTION
+Standardised Mu2e control-room stop script, run by
+.BR "crs-app stop cfocontrol" .
+.B CFOControl.py
+is a one-shot client with no persistent process, PID file or temporary file,
+so this script prints a two-line notice and exits.
+It does not signal any process and does not cancel a macro already sent to
+the MacroMaker.
+.SH OPTIONS
+None; arguments are ignored.
+.SH EXIT STATUS
+Always 0.
+.SH EXAMPLES
+.RS
+.nf
+\&./stop\-mu2edaq\-cfocontrol.sh
+.fi
+.RE
+.SH SEE ALSO
+.BR start\-mu2edaq\-cfocontrol.sh (1),
+.BR CFOControl.py (1)
+.SH AUTHOR
+Mu2e DAQ group, Fermilab.

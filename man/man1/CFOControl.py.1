@@ -1,0 +1,249 @@
+.TH CFOCONTROL.PY 1 "2026-10-06" "mu2edaq-CFOControl t01.00.00" "Mu2e DAQ Manual"
+.SH NAME
+CFOControl.py \- run otsdaq FE macros over the MacroMaker UDP interface
+.SH SYNOPSIS
+.B python3 CFOControl.py
+.RB [ \-\-config
+.IR FILE ]
+.RB [ \-\-host
+.IR HOST ]
+.RB [ \-\-port
+.IR PORT ]
+.RB [ \-\-refresh ]
+.RB [ \-v ]
+.br
+.B python3 CFOControl.py
+.B \-\-fe
+.I FE_UID
+.RB [ \-\-cmd
+.I COMMAND
+.RB [ \-\-inputs
+.IR VALUE ...]]
+.RB [ \-\-list\-inputs ]
+.RB [ \-\-list\-outputs ]
+.SH DESCRIPTION
+.B CFOControl.py
+is a one-shot client for the otsdaq MacroMaker supervisor's UDP
+remote-control interface.
+It is a Python port of the C++
+.B ots_mm_udp_test
+from otsdaq-utilities, with YAML configuration and IPv6 support added.
+It sends one request, waits for the reply, prints it and exits.
+.PP
+The mode is chosen by which options are present:
+.TP
+.B "(no \-\-fe)"
+Send
+.B GetFrontendMacroInfo
+and print every front-end UID the MacroMaker reports.
+.TP
+.BI \-\-fe " FE_UID"
+Print every FE macro registered for that front-end, with its input and
+output counts.
+.TP
+.BI \-\-fe " FE_UID " \-\-cmd " COMMAND " \-\-list\-inputs | \-\-list\-outputs
+Print the input and/or output parameter names of one macro.
+.TP
+.BI \-\-fe " FE_UID " \-\-cmd " COMMAND"
+Run the macro with the positional
+.B \-\-inputs
+values, then print each URI-decoded output as
+.IR "name: value" .
+.PP
+.B This tool writes to production timing hardware.
+For a CFO front-end the registered macros include
+.BR "CFO Write" ,
+.BR "CFO Halt" ,
+.BR "CFO Hard Reset" ,
+.B "Launch Runplan"
+and
+.BR "Shutdown Link Tx" .
+There is no confirmation prompt, no dry-run mode, no allow-list and no
+read-back.
+The MacroMaker runs every UDP request as user
+.B NO-USER
+with permission
+.BR "allUsers: 255" ,
+so the server adds no protection either.
+Confirm every write with a separate
+.B "CFO Read"
+on the same address.
+.SH OPTIONS
+.TP
+.BI \-\-config " FILE"
+YAML configuration file; see
+.BR config.yaml (5).
+Without this option
+.I config.yaml
+in the script's own directory is read if it exists, otherwise built-in
+defaults are used.
+A named
+.I FILE
+that does not exist is fatal.
+.TP
+.BI \-\-host " HOST"
+IPv4 address, IPv6 address or hostname of the MacroMaker supervisor.
+Overrides
+.BR connection.host .
+.TP
+.BI \-\-port " PORT"
+UDP port of the MacroMaker.
+Overrides
+.BR connection.port .
+A value of 0 is ignored.
+.TP
+.BR \-\-fe ", " \-\-frontend " \fIFE_UID\fR"
+Front-end interface UID, for example
+.BR CFO0 .
+Must match exactly.
+.TP
+.BR \-\-cmd ", " \-\-command " \fICOMMAND\fR"
+FE macro name, exactly as listed by
+.BR "\-\-fe" ,
+including spaces and case; quote it.
+.TP
+.BI \-\-inputs " VALUE ..."
+Input values in parameter order.
+The count must equal the macro's input count, or the command is not sent and
+the expected parameter names are printed.
+.B Known defect:
+a macro with two or more inputs is mis-framed on the wire, so only the first
+input reaches the macro (see BUGS).
+.TP
+.B \-\-list\-inputs
+With
+.B \-\-cmd
+print the macro's input parameter names and exit.
+.TP
+.B \-\-list\-outputs
+With
+.B \-\-cmd
+print the macro's output parameter names and exit.
+.TP
+.B \-\-refresh
+Issue an extra
+.B GetFrontendMacroInfo
+before running.
+The macro cache lives only in the process, so the first query is always fresh
+and this option has no other effect.
+.TP
+.BR \-v ", " \-\-verbose
+Print each datagram sent and the first 200 characters of each datagram
+received.
+.TP
+.BR \-h ", " \-\-help
+Print usage and exit.
+.SH FILES
+.TP
+.I config.yaml
+Default configuration, read from the directory containing
+.IR CFOControl.py ,
+not from the current directory.
+.TP
+.I ots_mm_udp_interface.py
+Protocol library, imported from the same directory; see
+.BR ots_mm_udp_interface (3).
+.SH ENVIRONMENT
+.B CFOControl.py
+reads no environment variables.
+.B CRS_PORT_MACROMAKER
+is read only by
+.BR start\-mu2edaq\-cfocontrol.sh (1),
+which turns it into
+.BR \-\-port .
+Precedence is command line, then configuration file, then built-in defaults.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+Also returned when the reply is truncated (a warning is logged if the output
+count is short) and when the MacroMaker answers with a plain-text
+.B Error:
+string, which is not recognised as an error.
+.TP
+.B 1
+A
+.B RuntimeError
+from the protocol library (no reply within
+.BR timeouts.first_packet ,
+unknown front-end or macro, an XML
+.B <Error>
+element in the reply), an input-count mismatch, an empty front-end or macro
+list, a missing
+.B \-\-config
+file, PyYAML not installed, or an uncaught
+.B OSError
+such as a host name that does not resolve (printed as a Python traceback).
+.TP
+.B 2
+Command-line usage error, including
+.B \-\-list\-inputs
+or
+.B \-\-list\-outputs
+without
+.BR \-\-cmd .
+.TP
+.B 130
+Interrupted with Ctrl-C.
+.SH EXAMPLES
+List the front-ends known to a MacroMaker:
+.PP
+.RS
+.nf
+python3 CFOControl.py \-\-host mu2e\-cfo\-01 \-\-port 5000
+.fi
+.RE
+.PP
+List the macros of the CFO front-end, then the inputs of one macro:
+.PP
+.RS
+.nf
+python3 CFOControl.py \-\-host mu2e\-cfo\-01 \-\-fe CFO0
+python3 CFOControl.py \-\-host mu2e\-cfo\-01 \-\-fe CFO0 \e
+    \-\-cmd "CFO Read" \-\-list\-inputs
+.fi
+.RE
+.PP
+Read a CFO register (single input, framed correctly):
+.PP
+.RS
+.nf
+python3 CFOControl.py \-\-host mu2e\-cfo\-01 \-\-fe CFO0 \e
+    \-\-cmd "CFO Read" \-\-inputs 0x9100
+.fi
+.RE
+.PP
+The module docstring's example
+.B \-\-cmd """SetRegister"" \-\-inputs 0x9100 0x1"
+names a macro that does not exist; its arguments are the reset bit of the CFO
+Control Register.
+Do not copy it.
+.SH BUGS
+Inputs after the first are sent in the output-names field because the input
+string is joined with a raw
+.B ;
+inside a
+.BR ; -separated
+datagram, so
+.B "CFO Write"
+does not receive
+.BR writeData .
+A plain-text
+.B "Error: ..."
+reply exits 0.
+A reply whose next datagram arrives more than
+.B timeouts.next_packet
+seconds late is truncated without error.
+See
+.I docs/ISSUES\-PENDING.md
+(CFO\-001, CFO\-002, CFO\-004).
+.SH SEE ALSO
+.BR config.yaml (5),
+.BR ots_mm_udp_interface (3),
+.BR start\-mu2edaq\-cfocontrol.sh (1),
+.BR stop\-mu2edaq\-cfocontrol.sh (1)
+.PP
+.I docs/INTERFACES.md
+for the MacroMaker UDP wire protocol.
+.SH AUTHOR
+Mu2e DAQ group, Fermilab.

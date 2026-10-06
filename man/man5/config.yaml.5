@@ -1,0 +1,102 @@
+.TH CONFIG.YAML 5 "2026-10-06" "mu2edaq-CFOControl t01.00.00" "Mu2e DAQ Manual"
+.SH NAME
+config.yaml \- CFOControl connection, timeout and logging configuration
+.SH SYNOPSIS
+.I mu2edaq\-CFOControl/config.yaml
+.SH DESCRIPTION
+YAML file read by
+.BR CFOControl.py (1)
+at start-up.
+It is loaded with
+.B yaml.safe_load
+and deep-merged over the built-in defaults
+.RI ( CFOControl.py:55\-68 ),
+so any key may be omitted.
+Unknown keys are ignored.
+Without
+.B \-\-config
+the file is looked for next to
+.IR CFOControl.py ,
+not in the current directory; if it is absent the defaults are used silently.
+.PP
+Precedence: command-line option, then this file, then built-in default.
+No environment variable is read.
+.SH KEYS
+.TP
+.B connection.host
+MacroMaker host: IPv4 address, IPv6 address or hostname.
+Default
+.BR 127.0.0.1 .
+Overridden by
+.BR \-\-host .
+.TP
+.B connection.port
+MacroMaker UDP port.
+Default
+.BR 5000 .
+Overridden by
+.BR \-\-port ;
+because
+.BR start\-mu2edaq\-cfocontrol.sh (1)
+always passes
+.BR \-\-port ,
+this key has no effect on the control-room launch path.
+The value must match
+.B OTS_MACROMAKER_UDP_PORT
+in the MacroMaker supervisor's environment.
+.TP
+.B timeouts.first_packet
+Seconds to wait for the first reply datagram.
+Default
+.BR 10.0 .
+A macro that runs longer than this is reported as an empty response (exit 1)
+but is not cancelled on the server and may already have run.
+.TP
+.B timeouts.next_packet
+Seconds to wait for each further datagram of a multi-datagram reply.
+Default
+.BR 0.2 .
+The first gap longer than this ends the reply; a late fragment is silently
+dropped and the reply is used as if complete.
+.TP
+.B logging.level
+Python logging level name:
+.BR DEBUG ,
+.BR INFO ,
+.B WARNING
+or
+.BR ERROR .
+Default
+.BR INFO .
+An unknown name falls back to
+.BR INFO .
+.TP
+.B logging.verbose_udp
+Print raw datagrams to stdout.
+Default
+.BR false .
+Forced true by
+.BR \-v .
+.SH FILES
+.TP
+.I config.yaml
+in the directory of
+.IR CFOControl.py .
+.SH EXAMPLES
+.nf
+connection:
+  host: "mu2e\-cfo\-01.fnal.gov"
+  port: 5000
+timeouts:
+  first_packet: 30.0
+  next_packet: 0.5
+logging:
+  level: DEBUG
+  verbose_udp: false
+.fi
+.SH SEE ALSO
+.BR CFOControl.py (1),
+.BR start\-mu2edaq\-cfocontrol.sh (1),
+.BR ots_mm_udp_interface (3)
+.SH AUTHOR
+Mu2e DAQ group, Fermilab.

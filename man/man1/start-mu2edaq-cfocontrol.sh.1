@@ -1,0 +1,91 @@
+.TH START-MU2EDAQ-CFOCONTROL.SH 1 "2026-10-06" "mu2edaq-CFOControl t01.00.00" "Mu2e DAQ Manual"
+.SH NAME
+start-mu2edaq-cfocontrol.sh \- control-room launcher for CFOControl.py
+.SH SYNOPSIS
+.B start\-mu2edaq\-cfocontrol.sh
+.RI [ CFOControl-option ...]
+.SH DESCRIPTION
+Standardised Mu2e control-room start script, run in a terminal by
+.BR "crs-app start cfocontrol"
+(entry
+.B cfocontrol
+in
+.IR mu2edaq\-controlroom\-setup/config/apps.yaml ,
+.BR "terminal: true" ).
+It changes to its own directory, selects
+.I ./venv/bin/python
+if that file is executable and
+.B python3
+from
+.B PATH
+otherwise, and
+.BR exec s
+.PP
+.RS
+.B CFOControl.py \-\-port
+.B $CRS_PORT_MACROMAKER
+.RI [ CFOControl-option ...]
+.RE
+.PP
+There is no daemon: the script ends when
+.B CFOControl.py
+exits.
+Run with no arguments it lists the front-ends and exits.
+.PP
+Nothing in the package creates
+.IR venv/ ,
+and the superproject's
+.I testing/common.sh
+excludes this package from venv creation
+.RB ( pkg_needs_venv ),
+so in practice the system
+.B python3
+runs it and must have PyYAML installed.
+.SH OPTIONS
+All arguments are passed unchanged to
+.BR CFOControl.py (1).
+Because
+.B \-\-port
+is always passed first, a later
+.B \-\-port
+argument overrides it (argparse keeps the last value).
+.SH ENVIRONMENT
+.TP
+.B CRS_PORT_MACROMAKER
+Destination UDP port, default 5000.
+It is always passed as
+.BR \-\-port ,
+so
+.B connection.port
+in
+.I config.yaml
+has no effect on this path.
+The MacroMaker listens on whatever
+.B OTS_MACROMAKER_UDP_PORT
+is set to in its own environment; nothing in mu2edaq-main sets that variable,
+so the two must be matched by hand.
+.SH FILES
+.TP
+.I ./venv/bin/python
+Interpreter used if present and executable.
+.TP
+.I CFOControl.py
+.TP
+.I config.yaml
+.SH EXIT STATUS
+The exit status of
+.BR CFOControl.py (1).
+.SH EXAMPLES
+.RS
+.nf
+cd ~/mu2edaq\-main/mu2edaq\-CFOControl
+\&./start\-mu2edaq\-cfocontrol.sh \-\-host mu2e\-cfo\-01 \-\-fe CFO0
+CRS_PORT_MACROMAKER=5001 ./start\-mu2edaq\-cfocontrol.sh \-\-host mu2e\-cfo\-01
+.fi
+.RE
+.SH SEE ALSO
+.BR CFOControl.py (1),
+.BR stop\-mu2edaq\-cfocontrol.sh (1),
+.BR config.yaml (5)
+.SH AUTHOR
+Mu2e DAQ group, Fermilab.
