@@ -1,0 +1,145 @@
+schema: mega-review/1
+package: mu2edaq-CFOControl
+tier: A
+group: operations
+repo:
+  url: git@github.com:Mu2e/mu2edaq-CFOControl.git
+  exists: true
+  issues_enabled: true
+doc_dir: docs
+summary: >
+  Python command-line client for the otsdaq MacroMaker UDP remote-control
+  interface that lists front-ends and their FE macros and runs one macro, such
+  as CFO Write, on a CFO or DTC front-end
+languages: [python, bash]
+loc: 944
+
+runtime:
+  executables:
+    - name: CFOControl.py
+      kind: cli
+      man_page: man/man1/CFOControl.py.1
+    - name: start-mu2edaq-cfocontrol.sh
+      kind: script
+      man_page: man/man1/start-mu2edaq-cfocontrol.sh.1
+    - name: stop-mu2edaq-cfocontrol.sh
+      kind: script
+      man_page: man/man1/stop-mu2edaq-cfocontrol.sh.1
+    - name: ots_mm_udp_interface
+      kind: library
+      man_page: man/man3/ots_mm_udp_interface.3
+  services: []
+  ports:
+    - {port: 5000, proto: udp, role: macromaker-remote-control-destination, source: "config.yaml:12"}
+    - {port: 5000, proto: udp, role: macromaker-remote-control-destination-start-script, source: "start-mu2edaq-cfocontrol.sh:16"}
+  config_files: [config.yaml]
+  env_vars: [CRS_PORT_MACROMAKER]
+
+interactions:
+  depends_on:
+    - package: otsdaq-mu2e
+      via: udp
+      direction: out
+      evidence: "ots_mm_udp_interface.py:409"
+  depended_on_by: []
+  external: [otsdaq-utilities-macromaker-supervisor]
+
+quality:
+  tests: {present: false, framework: none, count: 0}
+  ci: {present: false, workflows: []}
+  license: MIT
+  artifacts_clean: true
+
+findings:
+  - id: CFO-001
+    severity: S2
+    type: bug
+    title: "[protocol] multi-input FE macros are mis-framed; inputs after the first arrive as the output list"
+    issue: pending
+    fingerprint: 44c72ffe
+  - id: CFO-002
+    severity: S2
+    type: bug
+    title: "[protocol] plain-text \"Error:\" replies from the MacroMaker are reported as success"
+    issue: pending
+    fingerprint: b77780d6
+  - id: CFO-003
+    severity: S2
+    type: enhancement
+    title: "[safety] state-changing CFO macros run with no confirmation, dry-run or read-back"
+    issue: pending
+    fingerprint: 448332ce
+  - id: CFO-004
+    severity: S3
+    type: bug
+    title: "[protocol] truncated multi-datagram replies are not detected and exit 0"
+    issue: pending
+    fingerprint: 71e05912
+  - id: CFO-005
+    severity: S3
+    type: enhancement
+    title: "[tests] no tests and no CI for a tool that writes production timing registers"
+    issue: pending
+    fingerprint: 2ea23c9b
+  - id: CFO-006
+    severity: S4
+    type: bug
+    title: "[cli] --refresh is a no-op because the macro cache is per-process"
+    issue: pending
+    fingerprint: 1fe565d5
+  - id: CFO-007
+    severity: S4
+    type: bug
+    title: "[config] config.yaml port is overridden by the start script and 5000 is an unenforced convention"
+    issue: pending
+    fingerprint: a624ab28
+  - id: CFO-008
+    severity: S4
+    type: enhancement
+    title: "[packaging] no requirements.txt or bootstrap; .gitignore copied from the dashboard"
+    issue: pending
+    fingerprint: 1a87e32a
+
+notes:
+  write_safety_verdict: >
+    No write protection of its own: no confirmation prompt, dry-run, allow-list,
+    read-back or local audit record (CFOControl.py:249-297), and the MacroMaker
+    UDP path runs every request as NO-USER with "allUsers: 255"
+    (otsdaq-utilities MacroMakerSupervisor.cc:560-561), so the server adds none.
+    The one register-write macro, CFO Write (address, writeData), cannot be
+    issued correctly: build_input_string joins pairs with a raw ';' inside the
+    ';'-split datagram, so writeData lands in the output-names field (CFO-001,
+    reproduced against a mock). A plain-text "Error: ..." reply, e.g. FE
+    supervisor not configured, exits 0 (CFO-002). The docstring example
+    targets the CFO Control Register reset bit 0x9100 bit 0 (CFO-003).
+  truncation_verdict: >
+    Yes. _receive_all ends a reply at the first inter-datagram gap longer than
+    timeouts.next_packet (0.2 s) with no length, sequence or end-of-document
+    check (ots_mm_udp_interface.py:186-200). The truncated text is returned as
+    if complete. For RunFrontendMacro the only signal is a WARNING when the
+    output count is short, and the exit status is 0 (reproduced: 0.5 s gap,
+    1 of 2 outputs printed, exit 0). For GetFrontendMacroInfo a cut inside an
+    FEMacros element silently drops that front-end and all later ones (CFO-004).
+  brief_correction: >
+    The UDP :5000 endpoint is served by the otsdaq-utilities MacroMaker
+    supervisor (RemoteControlWorkLoop, enabled only when OTS_MACROMAKER_UDP_IP
+    and OTS_MACROMAKER_UDP_PORT are both set), not by otsdaq-mu2e's
+    CFOFrontEndInterface, which only registers the FE macros that the
+    MacroMaker forwards to over SOAP. The depends_on entry on otsdaq-mu2e is
+    therefore indirect, through the MacroMaker.
+  venv_exclusion: >
+    Superproject testing/common.sh:55 (pkg_needs_venv) returns 1 for
+    mu2edaq-CFOControl, so the suite harness creates no venv for it; the start
+    script falls back to the system python3, which must provide PyYAML.
+  discovery_meta: >
+    Not applicable (CONTRACT 9.5): the package neither announces nor queries
+    mu2edaq-discovery.
+  man_layout: >
+    New pages, already in man/manN/ layout; no git mv; no stale path references.
+  loc: >
+    944 = CFOControl.py 377 + ots_mm_udp_interface.py 502 + config.yaml 32 +
+    start/stop scripts 33 (wc -l of all tracked source).
+  resumed_draft: >
+    ARCHITECTURE.md, INTERFACES.md and ISSUES-PENDING.md were drafted by a
+    terminated agent; every cited server line was re-read and the three
+    protocol findings re-run against an independent mock before commit.
